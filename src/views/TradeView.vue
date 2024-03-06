@@ -77,7 +77,7 @@
       </div>
     </div>
 
-    <div class="flex justify-center p-5" id="show-hide-button">
+    <div class="flex justify-center pb-6" id="show-hide-button">
       <button
           :disabled="showhide === true"
           class="btn-sm rounded-l-md rounded-r-none px-4 py-1"
@@ -697,10 +697,6 @@ watch(interval, async () => {
   produceCandleChart();
   producevDepthChart();
   produceVolumeChart();
-});
-
-watch(showhide, async () => {
-  console.log(showhide.value)
 });
 
 watch(visibility, (current) => {
