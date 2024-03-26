@@ -501,7 +501,7 @@ const walletStore = useWalletStore();
 const tokenStore = useTokenStore();
 const visibility = useDocumentVisibility();
 
-const symbol = ref(route.params.symbol);
+const symbol = ref(route.params.symbol.toUpperCase());
 
 const buyOrderType = ref('limit');
 const buyPrice = ref('');
