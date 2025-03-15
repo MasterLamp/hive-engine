@@ -77,7 +77,7 @@ const openOrdersFields = [
   { key: 'quantity', label: 'QUANTITY' },
   { key: 'symbol', label: 'SYMBOL' },
   { key: 'price', label: 'PRICE' },
-  { key: 'total', label: 'TOTAL HIVE' },
+  { key: 'total', label: 'TOTAL HIVE', sortable: true },
   { key: 'txId', label: 'Action' },
 ];
 
