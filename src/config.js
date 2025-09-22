@@ -30,6 +30,6 @@ export const SIDECHAIN_RPCS = [
   'https://herpc.kanibot.com',
   'https://herpc.actifit.io',
   'https://engine.beeswap.tools',
-  'https://api.hive-engine.com/rpc',
+  'https://api.hive-engine.com/rpc/',
   'https://ha.herpc.dtools.dev',
 ];
