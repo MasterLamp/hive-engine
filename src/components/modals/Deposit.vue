@@ -6,8 +6,7 @@
 
     <template v-else>
       <div class="alert-warning mb-5 font-bold">
-        There is a 0.75% fee on deposits. Ethereum, ERC-20, BNB, BEP-20, Polygon (MATIC) and Polygon ERC-20 deposits
-        have no deposit fees, but you'll pay the Ethereum / BSC / Polygon network gas fee.
+        There is a 0.75% fee on deposits. Ethereum, ERC-20, BNB, BEP-20, Polygon (POL), Polygon ERC-20, and Solana (SOL) deposits have no deposit fees.
       </div>
 
       <div v-if="!selectedToken && !depositInfo" class="alert-warning">
@@ -73,7 +72,7 @@
           </div>
         </div>
 
-        <template v-if="['ETH', 'BNB', 'MATIC'].includes(selectedToken)">
+        <template v-if="['ETH', 'BNB', 'POL'].includes(selectedToken)">
           <div class="mb-3">
             <label class="mb-2 block font-bold">Available Balance</label>
             <div class="cursor-pointer" @click="depositAmount = depositInfo.balance">
@@ -86,14 +85,21 @@
             <input id="depositAmount" v-model="depositAmount" type="number" step="any" />
           </div>
 
-          <button
-            class="btn"
-            :disabled="depositAmount <= 0 || depositAmount > depositInfo.balance"
-            @click.prevent="depositEvmAsset(networks[selectedToken])"
-          >
-            <Spinner v-if="btnBusy" />
-            {{ ' ' }} Deposit {{ selectedToken }}
-          </button>
+          <div class="flex flex-wrap items-center justify-between gap-4">
+            <button
+              class="btn"
+              :disabled="depositAmount <= 0 || depositAmount > depositInfo.balance"
+              @click.prevent="depositEvmAsset(networks[selectedToken])"
+            >
+              <Spinner v-if="btnBusy" />
+              {{ ' ' }} Deposit {{ selectedToken }}
+            </button>
+
+            <p v-if="selectedToken === 'POL'" class="text-sm">
+              By depositing POL you'll receive SWAP.MATIC to your wallet. You can get POL back by
+              withdrawing SWAP.MATIC.
+            </p>
+          </div>
         </template>
 
         <template v-else>
@@ -123,6 +129,56 @@
             {{ ' ' }} Deposit {{ evmToken }}
           </button>
         </template>
+      </template>
+
+      <template v-else-if="isSolanaToken">
+        <div class="mb-3">
+          <label for="solAddress" class="mb-2 block font-bold">Your Solana Address</label>
+
+          <div class="flex items-center">
+            <input id="solAddress" v-model="solAddress" type="text" class="!rounded-r-none" placeholder="" />
+
+            <button
+              class="btn-sm self-stretch rounded-none border-r-red-800"
+              title="Refresh address"
+              @click="fetchSolAddress"
+            >
+              <ArrowPathIcon class="h-5 w-5" />
+            </button>
+
+            <button
+              class="btn-sm self-stretch rounded-l-none"
+              title="Add or update address"
+              @click="updateSolAddress"
+            >
+              Update
+            </button>
+          </div>
+        </div>
+
+          <div class="mb-3">
+            <label class="mb-2 block font-bold">Available Balance</label>
+            <div class="cursor-pointer" @click="depositAmount = depositInfo.balance">
+              {{ depositInfo.balance }} {{ selectedToken }}
+            </div>
+          </div>
+
+          <div class="mb-3">
+            <label for="depositAmount" class="mb-2 block font-bold">Deposit Amount</label>
+            <input id="depositAmount" v-model="depositAmount" type="number" step="any" :min="0.01" />
+            <div class="text-sm mt-1">Minimum Solana deposit amount is 0.01 SOL</div>
+          </div>
+
+          <div class="flex flex-wrap items-center justify-between gap-4">
+            <button
+              class="btn"
+              :disabled="depositAmount < 0.01 || depositAmount > depositInfo.balance"
+              @click.prevent="depositSolAsset()"
+            >
+              <Spinner v-if="btnBusy" />
+              {{ ' ' }} Deposit {{ selectedToken }}
+            </button>
+          </div>
       </template>
 
       <template v-else>
@@ -189,7 +245,15 @@ import {
   BrowserProvider,
   toBeHex,
 } from 'ethers';
+import {
+  Connection,
+  PublicKey,
+  SystemProgram,
+  Transaction,
+} from '@solana/web3.js';
 import { computed, ref, watch } from 'vue';
+import Big from 'big.js';
+import { Buffer } from 'buffer'
 import Modal from '@/components/modals/Modal.vue';
 import SearchSelect from '@/components/utilities/SearchSelect.vue';
 import { hiveClient } from '@/plugins/hive';
@@ -197,16 +261,20 @@ import { useStore } from '@/stores';
 import { useTokenStore } from '@/stores/token';
 import { useUserStore } from '@/stores/user';
 import { useWalletStore } from '@/stores/wallet';
-import { toFixedWithoutRounding } from '@/utils';
+import { sleep, toFixedWithoutRounding } from '@/utils';
+import { useVfm } from 'vue-final-modal';
+
+globalThis.Buffer = Buffer
 
 let browserProvider = null;
+let solanaProvider;
 
 const networks = {
   ETH: 'eth',
   ERC20: 'eth',
   BNB: 'bsc',
   BEP20: 'bsc',
-  MATIC: 'polygon',
+  POL: 'polygon',
   'POLY-ERC20': 'polygon',
 };
 
@@ -260,6 +328,8 @@ const depositAmount = ref('');
 const evmAddress = ref('');
 const evmToken = ref(null);
 
+const solAddress = ref(null)
+
 const settings = computed(() => store.settings);
 const peggedTokens = computed(() => tokenStore.peggedTokens);
 const evmTokens = computed(() => tokenStore.evmTokens);
@@ -274,7 +344,8 @@ const tokens = computed(() => {
     ...peggedTokens.value,
     settings.value.eth_bridge.ethereum,
     settings.value.bsc_bridge.bnb,
-    settings.value.polygon_bridge.matic,
+    settings.value.polygon_bridge.pol,
+    settings.value.solana_bridge.solana,
   ];
 
   if (settings.value.eth_bridge.erc_20.enabled) {
@@ -296,9 +367,7 @@ const tokens = computed(() => {
   return [{ value: null, text: 'Please select a token' }, ...tokens];
 });
 
-const isEvmToken = computed(() =>
-  ['ETH', 'ERC20', 'BNB', 'BEP20', 'MATIC', 'POLY-ERC20'].includes(selectedToken.value),
-);
+const isEvmToken = computed(() => ['ETH', 'ERC20', 'BNB', 'BEP20', 'POL', 'POLY-ERC20'].includes(selectedToken.value));
 
 const evmTokenOptions = computed(() => {
   const allEvmTokens = evmTokens.value.map((t) => ({
@@ -308,6 +377,9 @@ const evmTokenOptions = computed(() => {
 
   return [{ value: null, text: 'Please select a token' }, ...allEvmTokens];
 });
+
+
+const isSolanaToken = computed(() => ['SOL'].includes(selectedToken.value));
 
 const hiveReceiveAmount = computed(() => (depositAmount.value * 0.9925).toFixed(3));
 
@@ -377,7 +449,7 @@ const updateEvmAddress = async (network = 'eth') => {
         },
       });
 
-      await store.requestBrodcastTransfer({
+      await store.requestBroadcastTransfer({
         to: settings.value[bridgeConfig].account,
         amount: '0.001',
         memo,
@@ -449,7 +521,7 @@ const depositHive = async () => {
     },
   });
 
-  await store.requestBrodcastTransfer({
+  await store.requestBroadcastTransfer({
     to: settings.value.hive_pegged_account,
     amount: toFixedWithoutRounding(depositAmount.value, 3).toFixed(3),
     memo,
@@ -503,6 +575,163 @@ const depositEvmToken = async (network) => {
   btnBusy.value = false;
 };
 
+
+const getSolConnection = () => {
+  return new Connection('https://solana-rpc.publicnode.com', 'confirmed');
+};
+
+const isSolAddress = (address) => {
+  return /[1-9A-HJ-NP-Za-km-z]{32,44}/.test(address);
+};
+
+const fetchSolAddress = async () => {
+  solAddress.value = await walletStore.fetchSolAddress();
+};
+
+const updateSolAddress = async () => {
+  if (!solanaProvider) return;
+
+  const resp = await solanaProvider.connect();
+
+  if (resp.publicKey.toString() !== solAddress.value) {
+    return notify({
+      title: 'Error',
+      text: 'Your entered address does not match with the connected address.',
+      type: 'error',
+    });
+  }
+
+  if (isSolAddress(solAddress.value)) {
+    try {
+      const encodedMessage = new TextEncoder().encode(userStore.username);
+
+      const signedMessage = await solanaProvider.signMessage(
+        encodedMessage,
+        'utf8',
+      );
+
+      console.log(signedMessage);
+
+      const memo = JSON.stringify({
+        id: store.settings?.solana_bridge.id,
+        json: {
+          solanaAddress: solAddress.value,
+          signature: Buffer.from(signedMessage.signature).toString('hex'),
+        },
+      });
+
+      await store.requestBroadcastTransfer({
+        to: store.settings.solana_bridge.account,
+        amount: '0.001',
+        memo,
+        currency: 'HIVE',
+      });
+    } catch (error) {
+      console.log(error);
+    }
+  }
+};
+
+const checkSolAddress = async () => {
+  let success = true;
+
+  try {
+    solAddress.value = await walletStore.fetchSolAddress();
+
+    const resp = await solanaProvider.connect();
+
+    if (!isSolAddress(solAddress.value)) {
+      success = false;
+
+      notify({
+        title: 'Error',
+        text: 'Please make sure you have added/updated your address before proceeding.',
+        type: 'error',
+      });
+    } else if (resp.publicKey.toString() !== solAddress.value) {
+      success = false;
+
+      notify({
+        title: 'Error',
+        text: 'Your entered address does not match with the connected address.',
+        type: 'error',
+      });
+    }
+  } catch (e) {
+    success = false;
+
+    console.log(e);
+  }
+
+  return success;
+};
+
+const solWaitForConfirmation = async (signature) => {
+  let count = 0;
+
+  while (count < 10) {
+    try {
+      await sleep(3000);
+
+      const { value } = await getSolConnection().getSignatureStatus(signature);
+
+      if (value) {
+        return value;
+      }
+    } catch {
+      //
+    }
+
+    count += 1;
+  }
+};
+
+const $vfm = useVfm()
+
+const depositSolAsset = async () => {
+  btnBusy.value = true;
+
+  try {
+    if (await checkSolAddress()) {
+      const sender = new PublicKey(solAddress.value);
+
+      const transaction = new Transaction().add(
+        SystemProgram.transfer({
+          fromPubkey: sender,
+          toPubkey: new PublicKey(
+            store.settings.solana_bridge.gateway_address,
+          ),
+          lamports: Big(depositAmount.value)
+            .times(10 ** 9)
+            .toNumber(),
+        }),
+      );
+
+      const { blockhash } = await getSolConnection().getLatestBlockhash();
+
+      transaction.recentBlockhash = blockhash;
+      transaction.feePayer = sender;
+
+      const { signature } =
+        await solanaProvider.signAndSendTransaction(transaction);
+
+      await solWaitForConfirmation(signature);
+
+      notify({
+        title: 'Success',
+        type: 'success',
+        text: `Transaction has been submitted to the Solana blockchain`,
+      });
+
+      await $vfm.closeAll()
+    }
+  } catch (e) {
+    console.log(e);
+  }
+
+  btnBusy.value = false;
+};
+
 watch(selectedToken, async (value) => {
   modalBusy.value = true;
 
@@ -515,7 +744,7 @@ watch(selectedToken, async (value) => {
     value === 'ERC20' ||
     value === 'BNB' ||
     value === 'BEP20' ||
-    value === 'MATIC' ||
+    value === 'POL' ||
     value === 'POLY-ERC20'
   ) {
     if (window.ethereum) {
@@ -559,7 +788,7 @@ watch(selectedToken, async (value) => {
 
           const depositAddress = settings.value[bridgeConfig].gateway_address;
 
-          if (value === 'ETH' || value === 'BNB' || value === 'MATIC') {
+          if (value === 'ETH' || value === 'BNB' || value === 'POL') {
             if (isAddress(evmAddress.value)) {
               balance = toFixedWithoutRounding(formatEther(await browserProvider.getBalance(evmAddress.value)), 8);
             }
@@ -588,6 +817,48 @@ watch(selectedToken, async (value) => {
         text: 'Metamask or other Web3 wallet was not found.',
         type: 'error',
       });
+    }
+  }else if (value === 'SOL') {
+    const provider = window.solana
+      ? window.solana
+      : window.xfi && window.xfi.solana
+        ? window.xfi.solana
+        : null;
+
+    if (!provider) {
+      selectedToken.value = '';
+
+      return notify({
+        title: 'Error',
+        type: 'error',
+        text: 'Phantom or other Solana supported wallet was not found.',
+      });
+    }
+
+    solanaProvider = provider;
+
+    try {
+      const resp = await provider.connect();
+      console.log(resp.publicKey.toString());
+
+      solAddress.value = await walletStore.fetchSolAddress();
+
+      let balance = 0;
+
+      if (solAddress.value) {
+        const balanceReq = await getSolConnection().getBalance(resp.publicKey);
+
+        balance = Big(balanceReq.toString())
+          .div(10 ** 9)
+          .toNumber();
+      }
+
+      walletStore.depositInfo = {
+        balance,
+        address: store.settings?.solana_bridge.gateway_address,
+      };
+    } catch (err) {
+      console.log(err);
     }
   } else {
     await walletStore.getDepositAddress(value);

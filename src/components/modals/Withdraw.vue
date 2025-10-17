@@ -7,8 +7,9 @@
 
       <template v-else>
         <div class="alert-warning mb-5 font-bold">
-          There is a 0.75% fee on withdrawals. For Ethereum, ERC-20, BNB, BEP-20, Polygon (MATIC) and Polygon ERC-20
-          withdrawals fee is 1% and you will also pay for the Ethereum / BSC / Polygon network gas fee.
+          There is a 0.75% fee on withdrawals. For Ethereum, ERC-20, BNB, BEP-20, Polygon (POL), Polygon ERC-20 and
+          Solana the withdrawal fee is 1% and you will also pay for the Ethereum / BSC / Polygon / Solana network gas
+          fee.
         </div>
 
         <div v-if="pendingWithdrawals >= 15" class="alert-warning mb-5 text-center font-bold">
@@ -133,6 +134,7 @@
               class="btn"
               :disabled="
                 minimumWithdrawAmount > tokenBalance ||
+                minimumWithdrawAmount > withdrawAmount
                 withdrawAmount <= 0 ||
                 withdrawAmount > tokenBalance ||
                 (isEvmToken && evmGasFee > gasFeeBalance)
@@ -198,7 +200,8 @@ const tokens = computed(() => {
     ...peggedTokens.value,
     settings.value.eth_bridge.ethereum,
     settings.value.bsc_bridge.bnb,
-    settings.value.polygon_bridge.matic,
+    settings.value.polygon_bridge.pol,
+    settings.value.solana_bridge.solana,
   ];
 
   if (settings.value.eth_bridge.erc_20.enabled) {
@@ -259,7 +262,7 @@ const evmAssets = computed(() => {
       bnb: { pegged_token_symbol: peggedBnb },
     },
     polygon_bridge: {
-      matic: { pegged_token_symbol: peggedMatic },
+      pol: { pegged_token_symbol: peggedMatic },
     },
   } = settings.value;
 
@@ -275,7 +278,7 @@ const evmFeeSymbol = computed(() => {
       bnb: { pegged_token_symbol: peggedBnb },
     },
     polygon_bridge: {
-      matic: { pegged_token_symbol: peggedMatic },
+      pol: { pegged_token_symbol: peggedMatic },
     },
   } = settings.value;
 
@@ -284,7 +287,7 @@ const evmFeeSymbol = computed(() => {
     ERC20: peggedEth,
     BNB: peggedBnb,
     BEP20: peggedBnb,
-    MATIC: peggedMatic,
+    POL: peggedMatic,
     'POLY-ERC20': peggedMatic,
   };
 
@@ -310,7 +313,15 @@ const receiveAmount = computed(() => {
   if (withdrawAmount.value > 0) {
     receiveAmount = toFixedWithoutRounding(withdrawAmount.value * 0.9925, 8);
 
-    if ([...evmAssets.value, 'ERC20', 'BEP20', 'POLY-ERC20'].includes(selectedToken.value)) {
+    if (
+      [
+        ...evmAssets.value,
+        'ERC20',
+        'BEP20',
+        'POLY-ERC20',
+        store.settings?.solana_bridge.solana.pegged_token_symbol,
+      ].includes(selectedToken.value)
+    ) {
       receiveAmount = toFixedWithoutRounding(withdrawAmount.value * 0.99 - evmGasFee.value, 8);
     } else if (selectedToken.value === 'SWAP.BLURT') {
       receiveAmount = toFixedWithoutRounding(receiveAmount - 0.1, 3);
@@ -372,6 +383,8 @@ const rules = {
     validAddress: (value) => {
       if (evmAssets.value.includes(selectedToken.value) || isEvmToken.value) {
         return isAddress(value);
+      } else if (selectedToken.value === store.settings?.solana_bridge.solana.pegged_token_symbol) {
+        return /[1-9A-HJ-NP-Za-km-z]{32,44}/.test(value);
       }
 
       return true;
