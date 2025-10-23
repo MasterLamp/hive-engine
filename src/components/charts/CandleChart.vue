@@ -5,6 +5,7 @@
 <script setup>
 import { Chart, LinearScale, TimeSeriesScale, CategoryScale, Tooltip } from 'chart.js';
 import { CandlestickController, CandlestickElement } from 'chartjs-chart-financial';
+import zoomPlugin from 'chartjs-plugin-zoom'
 import { ref } from 'vue';
 import { createTypedChart } from 'vue-chartjs';
 import 'chartjs-adapter-date-fns';
@@ -47,6 +48,7 @@ Chart.register(
   CategoryScale,
   Tooltip,
   CustomCandleChart,
+  zoomPlugin
 );
 
 const Candlestick = createTypedChart('CandleStick', CustomCandleChart);
@@ -83,6 +85,21 @@ const options = ref({
     chartAreaBorder: {
       borderColor: 'white',
     },
+    zoom: {
+      pan: {
+        enabled: true,
+        mode: 'x',
+      },
+      zoom: {
+        wheel: {
+          enabled: true,
+        },
+        pinch: {
+          enabled: true,
+        },
+        mode: 'x',
+      }
+    }
   },
 });
 </script>
