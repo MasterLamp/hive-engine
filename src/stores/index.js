@@ -7,6 +7,9 @@ import { emitter } from '@/plugins/mitt';
 import { sidechain } from '@/plugins/sidechain';
 import { useUserStore } from '@/stores/user';
 import { sleep } from '@/utils';
+import App from '@/App.vue';
+import { useNotification } from "@kyvg/vue3-notification";
+const notification = useNotification()
 
 const parseJSON = (json) => {
   let result = {};
@@ -120,11 +123,15 @@ export const useStore = defineStore({
 
     async fetchSettings() {
       try {
+        //TRIBALDEX_API
         const { data } = await axios.get(`${TRIBALDEX_API}/settings`);
-
         this.settings = data;
       } catch {
-        //
+        notification.notify({
+           title: `Can't fetch settings`,
+           text: `Errornous response from ${TRIBALDEX_API}/settings`
+        })
+        this.settings = { "disabled_tokens": [], "deprecated_tokens": [] }
       }
     },
 

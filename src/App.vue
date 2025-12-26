@@ -413,6 +413,7 @@ onMounted(async () => {
 
   if (!announcements || announcements.length <= 0) {
     shown.value = [];
+    return;
   }
 
   announcements = announcements.filter((ann) => !shown.value.includes(ann.id));

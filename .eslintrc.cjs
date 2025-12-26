@@ -36,6 +36,10 @@ module.exports = {
   parserOptions: {
     ecmaVersion: 'latest',
     sourceType: 'module',
+    babelOptions: {
+      parserOpts: {
+        plugins: ["jsx","flow","typescript"]
+      }
   },
   settings: {
     'import/resolver': {
