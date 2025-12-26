@@ -10,7 +10,7 @@ computed: {
   window: () => window;
 }
 
-const processOrderBook = (orderBook) => {
+const processOrderBook = (orderBook, type) => {
   let volume = Big(0);
   let hiveVolume = Big(0);
 
@@ -20,13 +20,12 @@ const processOrderBook = (orderBook) => {
       const quantity = Big(o.quantity);
       const total = price.times(quantity);
       const account = o.account;
-
       return {
         account,
         price,
         quantity,
         total,
-        index
+        type
       };
     })
     .reduce((acc, cur) => {
@@ -52,22 +51,26 @@ const processOrderBook = (orderBook) => {
     }, [])
     .map((o) => {
       if(o.volume > 999999) {
-        o.volume = (o.volume / 1000000).toFixed(4) + 'M';
+        //o.volume = (o.volume / 1000000).toFixed(4) + 'M';
       }
       else {
-        o.volume = o.volume.toFixed(8)
+        //o.volume = o.volume.toFixed(8)
       }
       if(o.quantity > 999999) {
-        o.quantityFormat = (o.quantity / 1000000).toFixed(4) + 'M';
+        //o.quantityFormat = (o.quantity / 1000000).toFixed(4) + 'M';
       }
       else {
-        o.quantityFormat = o.quantity.toFixed(8)
+        //o.quantityFormat = o.quantity.toFixed(8)
       }
+      o.quantityFormat = o.quantity.toFixed(8)
       return {
         ...o,
         account: o.account,
         quantityFormat: o.quantityFormat,
+        quantity: o.quantity,
         total: o.total.toFixed(8),
+        cumulativeHive: null,
+        cumulativeQuantity: null,
         volume: o.volume,
         hive_volume: o.hive_volume.toFixed(8),
       };
@@ -90,11 +93,11 @@ export const useMarketStore = defineStore({
 
   getters: {
     buyBookFormatted(state) {
-      return processOrderBook(state.buyBook);
+      return processOrderBook(state.buyBook, 'buy');
     },
 
     sellBookFormatted(state) {
-      return processOrderBook(state.sellBook);
+      return processOrderBook(state.sellBook, 'sell');
     },
 
     openOrdersFormatted(state) {

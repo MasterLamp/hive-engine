@@ -369,7 +369,24 @@
     <div class="grid gap-10 md:grid-cols-2">
       <div class="col-span-1 mt-5">
         <h3 class="mb-3 text-xl font-bold">Buy Orders</h3>
-
+        
+        <FilteredTable :items="buyBook" 
+          :fields="buyBookFields" :per-page="15">
+          <template #cell(price)="{ row }">
+            <a
+              class="cursor-pointer hover:underline"
+              @click="
+                sellPrice = row.price.toFixed(8);
+                buyPrice = row.price.toFixed(8);
+                sellQuantity = row.quantity;
+                buyQuantity = row.quantity;
+              "
+            >
+              {{ row.price.toFixed(8) }}
+            </a>
+          </template>
+        </FilteredTable>
+        <!-- 
         <custom-table
           :fields="buyBookFields"
           :items="buyBook.slice(0, 250)"
@@ -389,12 +406,31 @@
               >{{ item.price.toFixed(8) }}</a
             >
           </template>
-        </custom-table>
+        </custom-table> 
+        -->
       </div>
 
       <div class="col-span-1 mt-5">
         <h3 class="mb-3 text-xl font-bold">Sell Orders</h3>
-
+        
+        <FilteredTable :items="sellBook" 
+          :fields="sellBookFields" :per-page="15">
+          <!-- ✅ Custom slot for PRICE -->
+          <template #cell(price)="{ row }">
+            <a
+              class="cursor-pointer hover:underline"
+              @click="
+                sellPrice = row.price.toFixed(8);
+                buyPrice = row.price.toFixed(8);
+                sellQuantity = row.quantity;
+                buyQuantity = row.quantity;
+              "
+            >
+              {{ row.price.toFixed(8) }}
+            </a>
+          </template>
+        </FilteredTable>
+<!--
         <custom-table
           :fields="sellBookFields"
           :items="sellBook.slice(0, 250)"
@@ -414,7 +450,7 @@
               >{{ item.price.toFixed(8) }}</a
             >
           </template>
-        </custom-table>
+        </custom-table>-->
       </div>
     </div>
 
@@ -448,13 +484,15 @@
 
     <h3 class="mb-3 mt-5 text-xl font-bold">Trade History</h3>
 
+  <FilteredTable :items="tradesHistory" :fields="tradesHistoryFields" :perPage="20" />
+<!-- 
     <custom-table :fields="tradesHistoryFields" :items="tradesHistory">
       <template #cell(type)="{ item }">
         <span :class="{ 'text-red-500': item.type === 'SELL', 'text-green-500': item.type === 'BUY' }">{{
           item.type
         }}</span>
       </template>
-    </custom-table>
+    </custom-table> -->
   </div>
 
   <PageFooter />
@@ -474,6 +512,7 @@ import DepthChart from '@/components/charts/DepthChart.vue';
 import VolumeChart from '@/components/charts/VolumeChart.vue';
 import PageFooter from '@/components/PageFooter.vue';
 import CustomTable from '@/components/utilities/CustomTable.vue';
+import FilteredTable from '@/components/utilities/FilteredTable2.vue';
 import SearchSelect from '@/components/utilities/SearchSelect.vue';
 import { emitter } from '@/plugins/mitt';
 import { useStore } from '@/stores';
@@ -551,7 +590,7 @@ const buyBook = computed(() =>
   marketStore.buyBookFormatted.map((b) => ({
     ...b,
     quantity: b.quantity.toFixed(token.value.precision),
-  })),
+  })), 
 );
 const sellBook = computed(() =>
   marketStore.sellBookFormatted.map((b) => ({
@@ -574,12 +613,12 @@ const buyBookFields = [
 ];
 
 const sellBookFields = [
-  { key: 'price', label: 'ASK', sortable: true },
-  { key: 'account', label: 'Account' },
-  { key: 'quantityFormat', label: symbol.value },
-  { key: 'volume', label: 'Total ' + symbol.value, class: 'md:hidden lg:table-cell' },
-  { key: 'total', label: 'HIVE' },
-  { key: 'hive_volume', label: 'Total HIVE', class: 'md:hidden lg:table-cell' },
+  { key: 'price', label: 'ASK', sortable: true, type: 'number' },
+  { key: 'account', label: 'Account', type: 'string' },
+  { key: 'quantityFormat', label: symbol.value, type: 'number' },
+  { key: 'volume', label: 'Total ' + symbol.value, class: 'md:hidden lg:table-cell', type: 'number' },
+  { key: 'total', label: 'HIVE', type: 'number' },
+  { key: 'hive_volume', label: 'Total HIVE', class: 'md:hidden lg:table-cell' , type: 'number'}
 ];
 
 const openOrdersFields = [
@@ -595,10 +634,10 @@ const openOrdersFields = [
 const tradesHistoryFields = [
   { key: 'timestamp', label: 'DATE' },
   { key: 'type', label: 'TYPE' },
-  { key: 'buyer', label: 'BUYER', class: 'hidden sm:table-cell' },
-  { key: 'seller', label: 'SELLER', class: 'hidden sm:table-cell' },
-  { key: 'quantity', label: symbol.value },
-  { key: 'price', label: 'PRICE' },
+  { key: 'buyer', label: 'BUYER', filterType: "multiselect", class: 'hidden sm:table-cell' },
+  { key: 'seller', label: 'SELLER', filterType: "multiselect", class: 'hidden sm:table-cell' },
+  { key: 'quantity', label: symbol.value, filterType: "dropdown" },
+  { key: 'price', label: 'PRICE', filterType: "multiselect", type: "number", sortable: true },
   { key: 'total', label: 'TOTAL HIVE' },
 ];
 

@@ -132,7 +132,7 @@
 
             <button
               class="btn"
-              :disabled="
+              disabled="
                 minimumWithdrawAmount > tokenBalance ||
                 minimumWithdrawAmount > withdrawAmount
                 withdrawAmount <= 0 ||
